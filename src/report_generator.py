@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from src.statistics import StatisticsAggregator
 
 
@@ -6,11 +8,13 @@ class ReportGenerator:
 
     def generate(self, statistics: StatisticsAggregator) -> str:
         sections = [
-            self._generate_section("Countries", statistics.country_counts, statistics.total_requests),
-            self._generate_section("Operating Systems", statistics.operating_system_counts, statistics.total_requests),
-            self._generate_section("Browsers", statistics.browser_counts, statistics.total_requests),
+            self._generate_section(
+                statistics.dimension_title(name),
+                statistics.counts_for(name),
+                statistics.total_requests,
+            )
+            for name in statistics.dimension_names
         ]
-
         return "\n\n".join(sections)
 
     def _generate_section(self, title: str, counts: dict[str, int], total: int) -> str:

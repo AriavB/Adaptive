@@ -19,7 +19,8 @@ def main() -> None:
         report_generator=ReportGenerator(),
     )
 
-    report = processor.process(LOG_FILE)
+    with open(LOG_FILE, encoding="utf-8") as handle:
+        report = processor.process(handle)
 
     print(report)
 

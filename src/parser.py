@@ -1,33 +1,35 @@
+from __future__ import annotations
+
 import re
 
 from src.models import LogEntry
 
 
-class InvalidLogEntry(Exception):
+class InvalidLogEntry(ValueError):
     """Raised when a log line cannot be parsed."""
 
 
 class LogParser:
     """Parses Apache Combined Log Format entries."""
 
-    def parse(self, line: str) -> LogEntry:
-        line = line.strip()
+    _APACHE_COMBINED_RE = re.compile(
+        r'^(?P<ip>\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+'
+        r'"(?P<method>[A-Z]+)\s+(?P<path>\S+)\s+(?P<protocol>[^"]+)"\s+'
+        r'(?P<status>\d{3})\s+\S+\s+'
+        r'"(?P<referer>[^"]*)"\s+'
+        r'"(?P<user_agent>[^"]*)"\s*$'
+    )
 
-        if not line:
+    def parse(self, line: str) -> LogEntry:
+        cleaned = line.strip()
+        if not cleaned:
             raise InvalidLogEntry("Empty log line")
 
-        # First token is always the client IP.
-        ip = line.split(maxsplit=1)[0]
-
-        # Combined Log Format contains: "request" "referer" "user-agent"
-        quoted_fields = re.findall(r'"([^"]*)"', line)
-
-        if len(quoted_fields) != 3:
-            raise InvalidLogEntry("Invalid Apache log format")
-
-        user_agent = quoted_fields[2]
+        match = self._APACHE_COMBINED_RE.match(cleaned)
+        if match is None:
+            raise InvalidLogEntry(f"Invalid Apache log format: {line!r}")
 
         return LogEntry(
-            ip=ip,
-            user_agent=user_agent,
+            ip=match.group("ip"),
+            user_agent=match.group("user_agent"),
         )
