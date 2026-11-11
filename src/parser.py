@@ -1,33 +1,42 @@
+import ipaddress
 import re
 
 from src.models import LogEntry
 
 
-class InvalidLogEntry(Exception):
-    """Raised when a log line cannot be parsed."""
+class InvalidLogEntry(ValueError):
+    """Raised when a log line cannot be parsed into a valid entry."""
+
+
+_LOG_PATTERN = re.compile(
+    r'^\s*(?P<ip>\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+\"(?:\\.|[^"\\])*\"\s+\S+\s+\S+\s+\"(?:\\.|[^"\\])*\"\s+\"(?P<user_agent>(?:\\.|[^"\\])*)\"\s*$'
+)
+
+
+def _normalize_user_agent(raw_user_agent: str) -> str:
+    """Unescape backslash-escaped quotes within the User-Agent field."""
+    return re.sub(r'\\([\\"])', r'\1', raw_user_agent)
 
 
 class LogParser:
     """Parses Apache Combined Log Format entries."""
 
     def parse(self, line: str) -> LogEntry:
-        line = line.strip()
-
-        if not line:
+        text = line.strip()
+        if not text:
             raise InvalidLogEntry("Empty log line")
 
-        # First token is always the client IP.
-        ip = line.split(maxsplit=1)[0]
-
-        # Combined Log Format contains: "request" "referer" "user-agent"
-        quoted_fields = re.findall(r'"([^"]*)"', line)
-
-        if len(quoted_fields) != 3:
+        match = _LOG_PATTERN.fullmatch(text)
+        if match is None:
             raise InvalidLogEntry("Invalid Apache log format")
 
-        user_agent = quoted_fields[2]
+        ip = match.group("ip")
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError as exc:
+            raise InvalidLogEntry(f"Invalid client IP address: {ip!r}") from exc
 
         return LogEntry(
             ip=ip,
-            user_agent=user_agent,
+            user_agent=_normalize_user_agent(match.group("user_agent")),
         )
